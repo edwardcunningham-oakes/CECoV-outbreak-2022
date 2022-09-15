@@ -1,0 +1,14 @@
+2022-02-14 16:36:31,331 - INFO - Writing log to scheme_2/MT906865_GQ477367_aligned_1200bp/scheme.log
+2022-02-14 16:36:31,350 - INFO - References:
+ - MT906865.1
+ - GQ477367.1
+2022-02-14 16:36:31,350 - INFO - Primary reference for coordinate system: MT906865.1
+2022-02-14 16:36:31,350 - INFO - Considering primers from all references
+2022-02-14 16:36:47,613 - INFO - All done! Scheme created with 28 regions, 0 gaps, 99.46% coverage
+2022-02-14 16:36:47,614 - INFO - Writing scheme_2/MT906865_GQ477367_aligned_1200bp/scheme.primer.bed
+2022-02-14 16:36:47,616 - INFO - Writing scheme_2/MT906865_GQ477367_aligned_1200bp/scheme.insert.bed
+2022-02-14 16:36:47,616 - INFO - Writing scheme_2/MT906865_GQ477367_aligned_1200bp/scheme.primer.tsv
+2022-02-14 16:36:47,617 - INFO - Writing scheme_2/MT906865_GQ477367_aligned_1200bp/scheme.reference.fasta
+2022-02-14 16:36:47,660 - INFO - Writing scheme_2/MT906865_GQ477367_aligned_1200bp/scheme.plot.pdf
+2022-02-14 16:36:47,660 - INFO - Writing scheme_2/MT906865_GQ477367_aligned_1200bp/scheme.plot.svg
+2022-02-14 16:36:47,831 - INFO - Writing scheme_2/MT906865_GQ477367_aligned_1200bp/scheme.report.json
