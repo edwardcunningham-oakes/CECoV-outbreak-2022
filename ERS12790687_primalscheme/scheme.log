@@ -1,0 +1,13 @@
+2022-04-05 20:25:02,535 - INFO - Writing log to CECoV_tiling_1200bp_v2/scheme.log
+2022-04-05 20:25:02,551 - INFO - References:
+ - Maisie
+2022-04-05 20:25:02,551 - INFO - Primary reference for coordinate system: Maisie
+2022-04-05 20:25:02,551 - INFO - Considering primers from all references
+2022-04-05 20:25:08,616 - INFO - All done! Scheme created with 28 regions, 0 gaps, 99.65% coverage
+2022-04-05 20:25:08,616 - INFO - Writing CECoV_tiling_1200bp_v2/scheme.primer.bed
+2022-04-05 20:25:08,618 - INFO - Writing CECoV_tiling_1200bp_v2/scheme.insert.bed
+2022-04-05 20:25:08,618 - INFO - Writing CECoV_tiling_1200bp_v2/scheme.primer.tsv
+2022-04-05 20:25:08,619 - INFO - Writing CECoV_tiling_1200bp_v2/scheme.reference.fasta
+2022-04-05 20:25:08,651 - INFO - Writing CECoV_tiling_1200bp_v2/scheme.plot.pdf
+2022-04-05 20:25:08,651 - INFO - Writing CECoV_tiling_1200bp_v2/scheme.plot.svg
+2022-04-05 20:25:08,842 - INFO - Writing CECoV_tiling_1200bp_v2/scheme.report.json
