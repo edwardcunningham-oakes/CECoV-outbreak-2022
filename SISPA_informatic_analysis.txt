@@ -1,0 +1,328 @@
+#SISPA analysis of 4 dogs which gave >1000 reads matched to alphacoronaviruses using bugseq
+#Initial filtering of demutiplexed reads and QC
+#First get demultiplexed reads into you home directory
+cp -r /pub7/ont/active/20220325_1734_X3_FAR86064_4fd24dc0/deplex /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_1
+#concatenate files 
+cat /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_1/barcode02/*.fastq > /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_1/barcode02_concatenated.fastq
+cat /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_2/barcode50/*.fastq > /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_2/barcode50_concatenated.fastq
+cat /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_1/barcode26/*.fastq > /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_1/barcode26_concatenated.fastq
+cat /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_1/barcode38/*.fastq > /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_1/barcode38_concatenated.fastq
+
+
+#edit metadata file for flow cell1...SISPA_pilot_metadata_flowcell1_28_3_22.txt to use parallel in next step
+nano SISPA_pilot_metadata_28_3_22.txt
+
+#NB Can use Nanofilt if already de-multiplexed (If not use porechop)
+
+parallel --colsep "\t" -j 4 "NanoFilt ~/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_1/{2} -q 15 --length 150 --maxlength 1500 --headcrop 18 --tailcrop 18 | gzip > ~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/{1}.fastq.gz" :::: SISPA_pilot_metadata_flowcell1_28_3_22.txt
+
+#copy to local machine to put through online bugseq portal
+scp -r ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt /mnt/d/Bioinformatics/SISPA
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#bugseq dog 10/22 (barcode 02)
+#Bug seq is an online portal which will match reads against an online microbial database
+#For dog 10/22, 8100 reads were matched to alphacoronavirus
+#copy over alphacoronavirus hits to server
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/First_attempt_16_03_22/SISPA/Barcode_02_Bugseq_alphacoronavirus_hits_read_id_29_3_22.txt ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/
+
+#Scp reference genome to map first binned reads to
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/First_attempt_16_03_22/SISPA/MT906865_UK2020b.fasta ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/
+
+#extract these reads from the.txt file that is produced from bugseq using seqtk 
+#seqtk subseq in.fq name.txt > out.fq
+seqtk subseq /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_1/barcode02_concatenated.fastq ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_02_Bugseq_alphacoronavirus_hits_read_id_29_3_22.txt > ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_02_Bugseq_alphacoronavirus_hits_read_id_29_3_22.fastq
+
+###Check number of sequences filtered
+#In order to check the number of reads in our fastq file, we can count the number of lines and divide by 4:
+cat ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_02_Bugseq_alphacoronavirus_hits_read_id_29_3_22.fastq | wc -l | awk '{print $1/4}'
+#8099
+
+###Copy closest BLASTN hits to reads from alphacoronavirus hits 
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/First_attempt_16_03_22/SISPA/MT906864_UK2020a.fasta ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/
+
+#index reference genome
+bwa index ~/CECoV_pilot_21_3_22/SISPA_pilot/MT906864_UK2020a.fasta
+
+#map alphacoronavirus hits back to indexed reference
+bwa mem -v 3 -t 4 ~/CECoV_pilot_21_3_22/SISPA_pilot/MT906864_UK2020a.fasta ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_02_Bugseq_alphacoronavirus_hits_read_id_29_3_22.fastq | samtools sort --threads 2 -m 8G --reference ~/CECoV_pilot_21_3_22/SISPA_pilot/MT906864_UK2020a.fasta -o barcode02_scheme1_mapped.bam
+#Processed 8099 reads in 4.910 CPU sec, 1.230 real sec
+
+#index sorted BAM file
+samtools index /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode02_scheme1_mapped.bam
+
+#visualise using IGV on local pc
+scp -r ada21:/pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode02_scheme1_mapped.* /mnt/d/Bioinformatics/SISPA
+
+#Get consensus to generate genome 
+samtools mpileup -d 1000 -A -Q 0 ~/CECoV_pilot_21_3_22/SISPA_pilot/barcode02_scheme1_mapped.bam | ivar consensus -p /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode02_scheme1_mapped.bam -q 15 -t 0 -m 5
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#For Dog 2/20 (barcode 50)
+#123950 reads aligned to coronavirus
+
+#copy over bugseq alphacoronavirus hits to server
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/First_attempt_16_03_22/SISPA/Barcode_50_Bugseq_coronavirus_hits_read_id_30_3_22.txt ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/
+
+#extract these reads from the.txt file that is produced from bugseq using seqtk 
+#seqtk subseq in.fq name.txt > out.fq
+seqtk subseq /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_2/barcode50_concatenated.fastq ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_50_Bugseq_coronavirus_hits_read_id_30_3_22.txt > ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_50_Bugseq_coronavirus_hits_read_id_30_3_22.fastq
+
+#Check number of sequences filtered
+#In order to check the number of reads in our fastq file, we can count the number of lines and divide by 4:
+cat ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_50_Bugseq_coronavirus_hits_read_id_30_3_22.fastq | wc -l | awk '{print $1/4}'
+#123949
+
+#index reference genome of nearest BlastN hit
+bwa index ~/CECoV_pilot_21_3_22/SISPA_pilot/MT906865_UK2020b.fasta
+
+#map reads to reference 
+bwa mem -v 3 -t 4 ~/CECoV_pilot_21_3_22/SISPA_pilot/MT906865_UK2020b.fasta ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_50_Bugseq_coronavirus_hits_read_id_30_3_22.fastq | samtools sort --threads 2 -m 8G --reference ~/CECoV_pilot_21_3_22/SISPA_pilot/MT906865_UK2020b.fasta -o barcode50_mapped.bam
+
+#log= [M::mem_process_seqs] Processed 70086 reads in 47.408 CPU sec, 11.823 real sec Processed 53863 reads in 37.089 CPU sec, 9.253 real sec
+
+#index sorted BAM file
+samtools index /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode50_mapped.bam
+
+#optional stats for mapped reads
+samtools flagstat /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode50_mapped.bam
+#log 123949 + 0 primary mapped (100.00% : N/A)
+
+#Generate consensus using samtools and ivar, -d determines depth limit to improve memory usage. -A counts reads not paired/ -Q is the minium base call quality to be considered and is set as 0 becasue ivar will deal with this QC step (option -q). -B disable base alignment quality. BAQ is the Phred-scaled probability of a read base being misaligned. It greatly helps to reduce false SNPs caused by misalignments.
+samtools mpileup -d 1000 -A -Q 0 /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode50_mapped.bam | ivar consensus -p /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode50_mapped.bam -q 15 -t 0 -m 5
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#For dog 11/22 (barcode 26), 3524 reads were matched to alphacoronavirus
+#copy over alphacoronavirus hits to server
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/First_attempt_16_03_22/SISPA/Barcode_26_Bugseq_coronavirus_hits_read_id_29_3_22.txt ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/
+
+#extract these reads from the.txt file that is produced from bugseq using seqtk 
+#seqtk subseq in.fq name.txt > out.fq
+seqtk subseq /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_1/barcode26_concatenated.fastq ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_26_Bugseq_coronavirus_hits_read_id_29_3_22.txt > ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_26_Bugseq_coronavirus_hits_read_id_29_3_22.fastq
+
+#Scp reference genome to first binned reads
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/First_attempt_16_03_22/SISPA/KP981644.fasta ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/
+
+
+###Check number of sequences filtered
+#In order to check the number of reads in our fastq file, we can count the number of lines and divide by 4:
+cat ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_26_Bugseq_coronavirus_hits_read_id_29_3_22.fastq | wc -l | awk '{print $1/4}'
+#3524
+
+#index reference genome ot nearest BLASTn hit
+bwa index ~/CECoV_pilot_21_3_22/SISPA_pilot/KP981644.fasta
+
+#map reads to reference 
+bwa mem -v 3 -t 4 ~/CECoV_pilot_21_3_22/SISPA_pilot/KP981644.fasta ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_26_Bugseq_coronavirus_hits_read_id_29_3_22.fastq | samtools sort --threads 2 -m 8G --reference ~/CECoV_pilot_21_3_22/SISPA_pilot/KP981644.fasta -o barcode26_mapped.bam
+
+#log= [M::mem_process_seqs] Processed 3524 reads in 2.889 CPU sec, 0.723 real sec
+
+#index sorted BAM file
+samtools index /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode26_mapped.bam
+
+#optional stats for mapped reads
+samtools flagstat /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode26_mapped.bam
+
+#copy to local pc to visualise using IGV
+scp -r ada21:/pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode26_mapped.* /mnt/d/Bioinformatics/SISPA
+
+###has 100% genome covered at at least 1x coverage but some areas of low coverage so get consensus to generate preliminary genome to use as a reference genome for mapping all nanofiltered reads where some may have been missed by bugseq.
+
+#Generate consensus using samtools and ivar,  Use -m=1 to get draft genome before including V1 apmlicons to get full genome consensus -d determines depth limit to improve memory usage. -A counts reads not paired/ -Q is the minium base call quality to be considered and is set as 0 becasue ivar will deal with this QC step (option -q). -B disable base alignment quality. BAQ is the Phred-scaled probability of a read base being misaligned. It greatly helps to reduce false SNPs caused by misalignments.
+samtools mpileup -d 1000 -A -Q 0 /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode26_mapped.bam | ivar consensus -p /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode26_mapped.bam -q 15 -t 0 -m 1
+
+#visualise using MEGA by copying to local pc
+scp -r ada21:/pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode26_mapped.bam.fa /mnt/d/Bioinformatics/SISPA
+
+#index preliminary genome fasta
+bwa index /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode26_mapped.bam.fa
+
+#create BAM file to be put through ivar for consensus. Use /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/Tadgh_scheme3_SISPA_mapped_b.bam.fa as reference
+bwa mem -v 3 -t 4 /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode26_mapped.bam.fa ~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/barcode26.fastq | samtools sort --threads 2 -m 8G --reference /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode26_mapped.bam.fa -o /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/Nanofilt_barcode26_mapped_to_prelim_genome.bam
+
+#index sorted BAM file
+samtools index /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/Nanofilt_barcode26_mapped_to_prelim_genome.bam
+
+#optional stats for mapped reads
+samtools flagstat /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/Nanofilt_barcode26_mapped_to_prelim_genome.bam
+#6964 (1.4% mapped)
+
+#Generate consensus using samtools and ivar, try at various q values starting at 15. -d determines depth limit to improve memory usage. -A counts reads not paired/ -Q is the minium base call quality to be considered and is set as 0 becasue ivar will deal with this QC step (option -q). -B disable base alignment quality. BAQ is the Phred-scaled probability of a read base being misaligned. It greatly helps to reduce false SNPs caused by misalignments.
+samtools mpileup -d 1000 -A -Q 0 /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/Nanofilt_barcode26_mapped_to_prelim_genome.bam | ivar consensus -p /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode26_mapped_polished_21_4_22.bam -q 15 -t 0 -m 5
+#no sites under 5x
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+#bugseq barcodes 38
+#Bug seq is an online portal which will match reads against an online microbial database
+#For Dog 61 (barcode 38), 11,820 reads were matched to alphacoronavirus
+#copy over alphacoronavirus hits to server
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/First_attempt_16_03_22/SISPA/Barcode_38_Bugseq_coronavirus_hits_read_id_29_3_22.txt ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/
+
+#extract these reads from the.txt file that is produced from bugseq using seqtk 
+#seqtk subseq in.fq name.txt > out.fq
+seqtk subseq /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/flowcell_1/barcode38_concatenated.fastq ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_38_Bugseq_coronavirus_hits_read_id_29_3_22.txt > ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_38_Bugseq_coronavirus_hits_read_id_29_3_22.fastq
+
+#Scp reference genome to first binned reads
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/First_attempt_16_03_22/SISPA/JN856008.fasta ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/
+
+
+###Check number of sequences filtered
+#In order to check the number of reads in our fastq file, we can count the number of lines and divide by 4:
+cat ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_38_Bugseq_coronavirus_hits_read_id_29_3_22.fastq | wc -l | awk '{print $1/4}'
+#11828
+
+#index reference genome
+bwa index ~/CECoV_pilot_21_3_22/SISPA_pilot/JN856008.fasta
+
+#map reads to reference 
+bwa mem -v 3 -t 4 ~/CECoV_pilot_21_3_22/SISPA_pilot/JN856008.fasta ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_38_Bugseq_coronavirus_hits_read_id_29_3_22.fastq | samtools sort --threads 2 -m 8G --reference ~/CECoV_pilot_21_3_22/SISPA_pilot/JN856008.fasta -o barcode38_mapped.bam
+
+#log= [M::mem_process_seqs] Processed 11828 reads in 8.920 CPU sec, 2.232 real sec
+
+#index sorted BAM file
+samtools index /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode38_mapped.bam
+
+#optional stats for mapped reads
+samtools flagstat /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode38_mapped.bam
+
+#visualise using IGV on local PC
+scp -r ada21:/pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode38_mapped.* /mnt/d/Bioinformatics/SISPA
+
+##Generate consensus using samtools and ivar, -d determines depth limit to improve memory usage. -A counts reads not paired/ -Q is the minium base call quality to be considered and is set as 0 becasue ivar will deal with this QC step (option -q). -B disable base alignment quality. BAQ is the Phred-scaled probability of a read base being misaligned. It greatly helps to reduce false SNPs caused by misalignments.
+samtools mpileup -d 1000 -A -Q 0 /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/barcode38_mapped.bam | ivar consensus -p /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode38_mapped.bam -q 15 -t 0 -m 5
+#ref length 26642 (missing S gene) and 309 sites below 5
+
+#scp to blast in order to add potential S genes to local database (see below)
+scp -r ada21:/pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode38_mapped.bam.fa /mnt/d/Bioinformatics/Samtools/consensus_genomes_ivar/
+
+#edit s gene database to include nearest blast hits of consensus
+
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/First_attempt_16_03_22/SISPA/BLAST_db/S_genes_CECoV_db_31_3_22.fas ada21:/pub45/jackp/CECoV_pilot_21_3_22/BLAST/
+
+###makeblastdb -in input_db -dbtype nucl -parse_seqids
+makeblastdb -in /pub45/jackp/CECoV_pilot_21_3_22/BLAST/S_genes_CECoV_db_31_3_22.fas -dbtype nucl -parse_seqids
+
+#unzip barcode 38 nanofiltered files
+gunzip ~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/barcode38.fastq.gz
+
+convert barcode_38 fastqs to fasta
+sed -n '1~4s/^@/>/p;2~4p' ~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/barcode38.fastq > ~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/barcode38.fa
+
+#Blast query against S gene database
+blastn -task dc-megablast -db /pub45/jackp/CECoV_pilot_21_3_22/BLAST/S_genes_CECoV_db_31_3_22.fas  -query ~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/barcode38.fa -dust no -max_target_seqs 1 -outfmt "6 qseqid sseqid evalue pident stitle" -out /pub45/jackp/CECoV_pilot_21_3_22/BLAST/S_gene_Blast_hits_1007914875.txt -num_threads 32
+
+#check number of hits
+
+ls -l /pub45/jackp/CECoV_pilot_21_3_22/BLAST/S_gene_Blast_hits_1007914875.txt
+#2548 hits
+
+#to visualise easier copy to local PC
+scp -r ada21:/pub45/jackp/CECoV_pilot_21_3_22/BLAST/S_gene_Blast_hits_1007914875.txt /mnt/d/Bioinformatics/BLAST
+
+#extract these reads from the.txt file that is produced from BLAST using seqtk
+scp -r  /mnt/d/Bioinformatics/BLAST/S_gene_Blast_hits_1007914875_just_reads.txt ada21:/pub45/jackp/CECoV_pilot_21_3_22/BLAST
+
+#scp nearest hit to S gene = KY063618
+scp -r /mnt/d//Darby_lab_2021/Dog_INTEGRATE/First_attempt_16_03_22/SISPA/BLAST_db/KY063618_s_gene.fasta ada21:/pub45/jackp/CECoV_pilot_21_3_22/BLAST
+
+#index
+bwa index /pub45/jackp/CECoV_pilot_21_3_22/BLAST/KY063618_s_gene.fasta
+
+#seqtk subseq in.fq name.txt > out.fq
+seqtk subseq ~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/barcode38.fastq  /pub45/jackp/CECoV_pilot_21_3_22/BLAST/S_gene_Blast_hits_1007914875_just_reads.txt > ~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/barcode38_Blast_S_gene_hits.fastq 
+
+cat ~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/barcode38_Blast_S_gene_hits.fastq  | wc -l | awk '{print $1/4}'
+#2548
+
+#map reads to reference
+bwa mem -v 3 -t 4 /pub45/jackp/CECoV_pilot_21_3_22/BLAST/KY063618_s_gene.fasta ~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/barcode38_Blast_S_gene_hits.fastq | samtools sort --threads 2 -m 8G --reference ~/CECoV_pilot_21_3_22/SISPA_pilot/MT114554.1_B906_ZJ_2019_S_gene.fas -o ~/CECoV_pilot_21_3_22/SISPA_pilot/barcode38_S_gene_mapped.bam
+
+#log= [M::mem_process_seqs] Processed 2548 reads in 1.284 CPU sec, 0.323 real sec
+
+#optional stats for mapped reads
+samtools flagstat ~/CECoV_pilot_21_3_22/SISPA_pilot/barcode38_S_gene_mapped.bam
+###2320 + 0 primary mapped (91.05% : N/A)
+
+#index
+samtools index ~/CECoV_pilot_21_3_22/SISPA_pilot/barcode38_S_gene_mapped.bam
+
+#view with igv on local PC
+scp -r ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/barcode38_S_gene_mapped.bam* /mnt/d/Bioinformatics/SISPA
+
+#get consensus using samtools mpileup
+
+samtools mpileup -d 1000 -A -Q 0 ~/CECoV_pilot_21_3_22/SISPA_pilot/barcode38_S_gene_mapped.bam | ivar consensus -p /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode38_S_gene_mapped.bam -q 15 -t 0 -m 5
+#105positions excluded
+
+#index
+samtools index ~/CECoV_pilot_21_3_22/SISPA_pilot/barcode38_mapped.bam
+
+#scp and merge consensus of 1007914875 genome and spike protein
+scp -r ada21:/pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode38_S_gene_mapped.bam* /mnt/d/Bioinformatics/Samtools/consensus_genomes_ivar
+scp -r ada21:/pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode38_mapped.bam* /mnt/d/Bioinformatics/Samtools/consensus_genomes_ivar
+
+
+###still some Nnnnns at 20707-20811, 28640-28678, 29089-29191 so remap/polish
+###First scp merged provisional genome to server 
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/Polished genomes/1007914875_CECoV_genome_30_3_22.fas ada21:/pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/ 
+
+#index fasta 
+bwa index /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/1007914875_CECoV_genome_30_3_22.fas
+
+####Merge bugseq files with S gene files
+cat ~/CECoV_pilot_21_3_22/SISPA_pilot/Barcode_38_Bugseq_coronavirus_hits_read_id_29_3_22.fastq ~/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/barcode38_Blast_S_gene_hits.fastq > ~/CECoV_pilot_21_3_22/SISPA_amplicon_combined/bugseq_and_S_gene_barcode38.fastq 
+
+
+#check
+cat ~/CECoV_pilot_21_3_22/SISPA_amplicon_combined/bugseq_and_S_gene_barcode38.fastq  | wc -l | awk '{print $1/4}'
+#14376
+
+#create BAM file to be put through samtools for consensus. Use /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/consensus_barcode26_mapped.bam.fa as reference
+bwa mem -v 3 -t 4 ~/CECoV_pilot_21_3_22/SISPA_pilot/consensus/1007914875_CECoV_genome_30_3_22.fa ~/CECoV_pilot_21_3_22/SISPA_amplicon_combined/bugseq_and_S_gene_barcode38.fastq | samtools sort --threads 2 -m 8G --reference ~/CECoV_pilot_21_3_22/SISPA_pilot/consensus/1007914875_CECoV_genome_30_3_22.fa -o /pub45/jackp/CECoV_pilot_21_3_22/SISPA_amplicon_combined/sorted_bams/bugseq_and_S_gene_barcode38.bam
+####Processed 14376 reads in 8.240 CPU sec, 2.062 real sec
+
+#index sorted BAM file
+samtools index /pub45/jackp/CECoV_pilot_21_3_22/SISPA_amplicon_combined/sorted_bams/bugseq_and_S_gene_barcode38.bam
+
+#optional stats for mapped reads
+samtools flagstat /pub45/jackp/CECoV_pilot_21_3_22/SISPA_amplicon_combined/sorted_bams/bugseq_and_S_gene_barcode38.bam
+
+###14373 + 0 primary mapped
+
+##get consensus
+samtools mpileup -d 1000 -A -Q 0 /pub45/jackp/CECoV_pilot_21_3_22/SISPA_amplicon_combined/sorted_bams/bugseq_and_S_gene_barcode38.bam | ivar consensus -p /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/bugseq_and_S_gene_barcode38.fastq_mapped.bam -q 15 -t 0 -m 5
+##40 positions not covered by depth of 5 
+
+#index new consensus fasta
+bwa index /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/bugseq_and_S_gene_barcode38.fastq_mapped.bam.fa
+###visualise bam file using IGV on local PC
+#scp indexed provisional genome used to create BAM file
+scp -r ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/consensus/1007914875_CECoV_genome_30_3_22.fa* /mnt/d/Bioinformatics/SISPA
+#scp sorted BAM to local machine
+scp -r ada21:/pub45/jackp/CECoV_pilot_21_3_22/SISPA_amplicon_combined/sorted_bams/bugseq_and_S_gene_barcode38.bam* /mnt/d/Bioinformatics/SISPA
+#scp improved consensus to local machine
+scp -r ada21:/pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/bugseq_and_S_gene_barcode38.fastq_mapped.bam.fa* /mnt/d/Bioinformatics/SISPA
+
+######still nnnns in same place so undertake one more round of polishing based on consensus from depth of X1 to fill gap 20707-20811 
+samtools mpileup -d 1000 -A -Q 0 /pub45/jackp/CECoV_pilot_21_3_22/SISPA_amplicon_combined/sorted_bams/bugseq_and_S_gene_barcode38.bam | ivar consensus -p /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/bugseq_and_S_gene_barcode38.fastq_mapped.bam -q 15 -t 0 -m 1
+
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/First_attempt_16_03_22/SISPA/Phylogenomics/Barcode_38_polished_genome_11_4_22.fas ada21:~/CECoV_pilot_21_3_22/SISPA_pilot/consensus/1007914875_CECoV_genome_12_4_22.fa
+
+#index 
+bwa index ~/CECoV_pilot_21_3_22/SISPA_pilot/consensus/1007914875_CECoV_genome_12_4_22.fa
+
+#create BAM file to be put through samtools for consensus. Use ~/CECoV_pilot_21_3_22/SISPA_pilot/consensus/1007914875_CECoV_genome_12_4_22.fa as reference
+bwa mem -v 3 -t 4 ~/CECoV_pilot_21_3_22/SISPA_pilot/consensus/1007914875_CECoV_genome_12_4_22.fa /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/deplex/Nanofilt/barcode38.fastq | samtools sort --threads 2 -m 8G --reference ~/CECoV_pilot_21_3_22/SISPA_pilot/consensus/1007914875_CECoV_genome_12_4_22.fa -o /pub45/jackp/CECoV_pilot_21_3_22/SISPA_amplicon_combined/sorted_bams/SISPA_filtered_barcode38_12_4_22.bam
+
+#index sorted BAM file
+samtools index /pub45/jackp/CECoV_pilot_21_3_22/SISPA_amplicon_combined/sorted_bams/SISPA_filtered_barcode38_12_4_22.bam
+
+#optional stats for mapped reads
+samtools flagstat /pub45/jackp/CECoV_pilot_21_3_22/SISPA_amplicon_combined/sorted_bams/SISPA_filtered_barcode38_12_4_22.bam
+#17796 + 0 primary mapped (3.95% : N/A)
+
+##get consensus
+samtools mpileup -d 1000 -A -Q 0 /pub45/jackp/CECoV_pilot_21_3_22/SISPA_amplicon_combined/sorted_bams/SISPA_filtered_barcode38_12_4_22.bam | ivar consensus -p /pub45/jackp/CECoV_pilot_21_3_22/SISPA_pilot/consensus/SISPA_raw_filtered_barcode38.fastq_mapped_12_4_22.bam -q 15 -t 0 -m 5
+##0 positions not covered by depth of 5 
+
+
+
+
