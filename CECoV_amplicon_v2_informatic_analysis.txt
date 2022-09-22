@@ -1,0 +1,58 @@
+######v2 CECoV analysis 5/22. Analysis of dogs with >5000 QC reads each which are potentially the same variant as dog 10/22 genome based on M gene phylogeny 
+#use parallel to untar/unzip barcodes
+#Number jobs will not take into account threads in the command, so multiply jobs by threads used by a tool to check it's not going to crash out (e.g. 4 jobs at 20 threads is 80)
+#Use {1} to specify the first column, {2} to specify the second etc. This can be used in a number of different ways (e.g. where column 1 and two contain the values "Hello" and "goodbye" respectively, {1}_{2} would return "Hello_goodbye", whilst {1}_input > {2}_output would produce the file "Goodbye_output" from "Hello_input"
+#parallel --colsep "\t" -j {number of jobs} "{COMMAND}" :::: {METADATA}
+parallel --colsep "\t" -j 27 "tar -xzvf barcode{1}.tar.gz" :::: CECoV_v2_barcodes.tab
+
+#remove tar files
+rm -r *.tar.gz
+
+#Let's do some QC for raw reads, For untrimmed reads can use Nanoplot
+
+parallel --colsep "\t" -j 27 "tar -xzvf barcode{1}.tar.gz" :::: CeCoV_v2_barcodes.tab
+
+parallel --colsep "\t" -j 27 "NanoPlot -t 20 -o ~/CECoV_v2/Nanoplot/barcode{1} -p CECoV_v2 -c orange --N50 --title barcode{1} --fastq ~/CECoV_v2/deplex/barcode{1}/*.fastq" :::: CECoV_v2_barcodes.tab
+
+
+#For visualising, scp to local PC
+scp -r ada21:~/CECoV_v2/Nanoplot/ /mnt/d/Bioinformatics/Nanoplot_archive/CECoV_v2/
+
+#check number of filtered reads
+cat /pub45/jackp/CECoV_v2/concatenated/concatentated_barcode01.fastq | wc -l | awk '{print $1/4}'
+#51472-correct
+
+#Can use Nanofilt if already de-multiplexed and indexes removed to remove low-quality sequences and primers
+parallel --colsep "\t" -j 27 "NanoFilt /pub45/jackp/CECoV_v2/concatenated/concatentated_barcode{1}.fastq -q 13 --length 1000 --maxlength 1400 | gzip > ~/CECoV_v2/NanoFilt/Nanofiltered_barcode{1}.fastq.gz" :::: CECoV_v2_barcodes.tab
+
+
+parallel --colsep "\t" -j 27 "NanoFilt /pub45/jackp/CECoV_v2/concatenated/concatentated_barcode{1}.fastq -q 13 --length 1000 --maxlength 1400 --tailcrop 27 --headcrop 27 | gzip > ~/CECoV_v2/NanoFilt/primer_trimmed/Nanofiltered_primer_trimmed_barcode{1}.fastq.gz" :::: CECoV_v2_barcodes.tab
+
+#Then generate QC visualisation 
+
+parallel --colsep "\t" -j 27 "NanoPlot -t 20 -o ~/CECoV_v2/Nanoplot/primer_trimmed_NanoFilt_barcode{1} -p CECoV_v2 -c orange --N50 --title barcode{1} --fastq ~/CECoV_v2/NanoFilt/primer_trimmed/Nanofiltered_primer_trimmed_barcode{1}.fastq.gz" :::: CECoV_v2_barcodes.tab
+
+scp -r ada21:/pub45/jackp/CECoV_v2/Nanoplot/primer_trimmed* /mnt/d/Bioinformatics/Nanoplot_archive/CECoV_v2/
+
+
+#First need to scp v2 genome (Dog_10) to server
+
+scp -r /mnt/d/Darby_lab_2021/Dog_INTEGRATE/Polished_genomes/Dog_10_CECoV_genome_4_4_22.fas ada21:~/CECoV_v2/
+
+#index fasta
+bwa index ~/CECoV_v2/Dog_10_CECoV_genome_4_4_22.fas
+
+###Map, trim and get consensus for samples
+ 
+parallel --colsep "\t" -j 27 "bwa mem -v 3 -t 4 ~/CECoV_v2/Dog_10_CECoV_genome_4_4_22.fas ~/CECoV_v2/NanoFilt/primer_trimmed/Nanofiltered_primer_trimmed_barcode{1}.fastq.gz | samtools sort --threads 2 -m 8G --reference ~/CECoV_v2/Dog_10_CECoV_genome_4_4_22.fas -o /pub45/jackp/CECoV_v2/BAM_files/primer_trimmed/barcode{1}_mapped.bam" :::: CECoV_v2_barcodes.tab
+
+parallel --colsep "\t" -j 27 "samtools index /pub45/jackp/CECoV_v2/BAM_files/primer_trimmed/barcode{1}_mapped.bam" :::: CECoV_v2_barcodes.tab
+
+scp -r ada21:~/CECoV_v2/BAM_files/primer* /mnt/d/Bioinformatics/CECoV_v2/
+
+#get consensus using Samtools and get rid of erroneous insertions and deletions produced by single reads
+samtools mpileup -d 1000 -A -Q 0 --no-output-ins --no-output-ins ~/CECoV_v2/BAM_files/primer_trimmed/barcodex_mapped.bam | ivar consensus -p consensus_Barcodex_CECoV_v2_test -q 13 -t 0.5 -m 5
+
+
+
+
